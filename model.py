@@ -61,8 +61,8 @@ class Pix2Pix(object):
         real_ab = torch.cat((real_a, real_b), 2)
         D_real_ab = self.D.forward(real_ab.detach())
         D_real_loss = real_bce_gan_loss(D_real_ab)
-        self.loss_dict['D_fake_loss'] = D_fake_loss
-        self.loss_dict['D_real_loss'] = D_real_loss
+        self.loss_dict['D_fake_loss'].append(D_fake_loss.data)
+        self.loss_dict['D_real_loss'].append(D_real_loss.data)
         return D_fake_loss, D_real_loss
     
     
@@ -80,7 +80,7 @@ class Pix2Pix(object):
         ### B=G(A)
         l1_loss = L1_loss(fake_b, real_b) * self.args.lamb
         G_loss = G_fake_loss + l1_loss
-        self.loss_dict['G_loss'] = G_loss
+        self.loss_dict['G_loss'].append(G_loss.data)
         return G_loss
     
     
@@ -113,12 +113,10 @@ class Pix2Pix(object):
                 G_loss = self.trainG(real_a, real_b, fake_b)
                 G_loss.backward()
                 self.optimG.step()
-                
-                
             print("\nIn epoch: {}, D_fake_loss: {:.4f}, D_real_loss: {:.4f}, G_loss: {:.4f}".format(epoch+1,
-                                                                                                  D_fake_loss,
-                                                                                                  D_real_loss,
-                                                                                                  G_loss))
+                                                                                                  D_fake_loss.data,
+                                                                                                  D_real_loss.data,
+                                                                                                  G_loss.data))
             self.save_results(epoch, self.sample_a, self.sample_b)
         self.save_model()
     
