@@ -153,7 +153,10 @@ class Pix2Pix(object):
             
     def load_model(self):
         # load saved model
-        exp_config = "ngf_{}_ndf_{}_lambda_{}_norm_{}".format(self.args.ngf, self.args.ndf, self.args.lamb, self.args.norm_type)
+        exp_config = "ngf_{}_ndf_{}_lambda_{}_norm_{}".format(self.args.ngf,
+                                                              self.args.ndf,
+                                                              self.args.lamb,
+                                                              self.args.norm_type)
         model_dir = os.path.join(self.args.save_dir, self.args.model, self.args.dataset, exp_config)
         
         self.G.load_state_dict(torch.load(os.path.join(model_dir, 'G.pkl')))
