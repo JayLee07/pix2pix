@@ -5,6 +5,7 @@ from torch.autograd import Variable
 from torch.optim import lr_scheduler
 from model_utils import get_norm_layer, initialize_weights
 
+
 def generator(args, gpu_ids=[]):
     norm_layer = get_norm_layer(args.norm_type)
     netG = ResnetG(args, gpu_ids=gpu_ids)
@@ -29,6 +30,7 @@ def discriminator(args, gpu_ids=[]):
     netD.apply(initialize_weights)
     return netD
 
+
 def scheduler_lr(args, optimizer):
     if args.lr_policy == 'step':
         scheduler = lr_scheduler.StepLR(optimizer, step_size = args.lr_decay_iters, gamma=0.1)
@@ -38,6 +40,7 @@ def scheduler_lr(args, optimizer):
         return NotImplementedError('{} is not the proper name of scheduler_lr'.format(args.lr_policy))
     return scheduler
 
+
 class ResnetBlock(nn.Module):
     def __init__(self, dim, padding_type, norm_layer, use_dropout, use_bias):
         super(ResnetBlock, self).__init__()
@@ -46,7 +49,7 @@ class ResnetBlock(nn.Module):
     def build_conv_block(self, dim, padding_type, norm_layer, use_dropout, use_bias):
         conv_block = []
         padding_size=0
-        
+        # padding for first layer of block
         if padding_type == 'reflect':
             conv_block += [nn.ReflectionPad2d(1)]
         elif padding_type == 'replicate':
@@ -55,7 +58,7 @@ class ResnetBlock(nn.Module):
             padding_size = 1
         else:
             raise NotImplementedError('padding {} is not implemented'.format(padding_type))
-        
+        # First layer of convblock
         conv_layer = nn.Conv2d(in_channels = dim,
                                out_channels = dim,
                                kernel_size=3,
@@ -66,7 +69,7 @@ class ResnetBlock(nn.Module):
                        nn.ReLU(True)]
         if use_dropout == True:
             conv_block += [nn.Dropout(0.5)]
-        
+        # padding for next layer of block
         padding_size = 0
         if padding_type == 'reflect':
             conv_block += [nn.ReflectionPad2d(1)]
@@ -76,7 +79,7 @@ class ResnetBlock(nn.Module):
             padding_size = 1
         else:
             raise NotImplementedError('pading {} is not implemented'.format(padding_type))
-        
+        # Next layer of convblock
         conv_block += [conv_layer, norm_layer(dim)]
         return nn.Sequential(*conv_block)
     
@@ -91,12 +94,12 @@ class ResnetG(nn.Module):
         self.args = args
         self.gpu_ids = gpu_ids
         norm_layer = get_norm_layer(self.args.norm_type)
-        
+        # use_bias is dependent on normalizing type
         if norm_layer == nn.InstanceNorm2d:
             use_bias = True
         else:
             use_bias = False
-        
+        # Type of Generator
         if args.modelG == 'resnet_9blocks':
             n_blocks=9
         elif args.model_G == 'resnet_6blocks':
@@ -104,11 +107,9 @@ class ResnetG(nn.Module):
         else:
             raise NotImplementedError('{} is not an appropriate modelG name'.format(args.modelG))
         assert(n_blocks>=0)
-        
         #Construct a model
         n_downsampling = 2
         mult = 2 ** n_downsampling
-        
         # First Module
         conv_layer = nn.Conv2d(in_channels = args.ch_in,
                                out_channels = args.ngf,
@@ -119,7 +120,6 @@ class ResnetG(nn.Module):
                   conv_layer, 
                   norm_layer(args.ngf, affine=True),
                   nn.ReLU(True)]
-        
         # Downsamples with conv layers
         for i in range(n_downsampling):
             mult = 2 ** i
@@ -132,7 +132,6 @@ class ResnetG(nn.Module):
             layers += [conv_layer,
                        norm_layer(args.ngf * mult * 2, affine=True),
                        nn.ReLU(True)]
-        
         # Construct Resnet blocks
         for i in range(n_blocks):
             resnet_block = ResnetBlock(dim = args.ngf * mult * 2,
@@ -141,7 +140,6 @@ class ResnetG(nn.Module):
                                        use_dropout = args.use_dropout, 
                                        use_bias = use_bias)
             layers += [resnet_block]
-        
         # Construct TransposeConv layers
         for i in range(n_downsampling):
             mult = 2**(n_downsampling - i)
@@ -158,7 +156,6 @@ class ResnetG(nn.Module):
         layers += [nn.ReflectionPad2d(3)]
         layers += [nn.Conv2d(args.ngf, args.ch_out, kernel_size=7, padding=0)]
         layers += [nn.Tanh()]
-        
         self.model = nn.Sequential(*layers)
     
     def forward(self, x):
@@ -170,13 +167,12 @@ class PixelD(nn.Module):
         super(PixelD, self).__init__()
         self.args = args
         self.gpu_ids = gpu_ids
-        
         norm_layer = get_norm_layer(self.args.norm_type)
+        # use_bias is dependent on normalizing type
         if norm_layer == nn.InstanceNorm2d:
             use_bias = True
         else:
             use_bias = False
-            
         conv_layer1 = nn.Conv2d(in_channels = self.ch_in,
                                 out_channels = self.ndf,
                                 kernel_size=1,
@@ -194,13 +190,11 @@ class PixelD(nn.Module):
                                 stride=1,
                                 padding=0,
                                 bias=use_bias)
-        
         layers = [conv_layer1, nn.LeakyReLU(0.2, True),
                  conv_layer2, norm_layer(args.ndf*2), nn.LeakyReLU(0.2, True),
                  conv_layer3]
         if args.use_sigmoid==True:
             layers += [nn.Sigmoid()]
-
         self.model = nn.Sequential(*layers)
         
     def forward(self, x):
@@ -212,8 +206,8 @@ class NLayerD(nn.Module):
         super(NLayerD, self).__init__()
         self.args = args
         self.gpu_ids = gpu_ids
-        
         norm_layer = get_norm_layer(self.args.norm_type)
+        # use_bias is dependent on normalizing type
         if norm_layer == nn.InstanceNorm2d:
             use_bias = True
         else:
@@ -255,7 +249,6 @@ class NLayerD(nn.Module):
         layers += [conv_layer, norm_layer(args.ndf * nf_mult), nn.LeakyReLU(0.2, True), final_layer]
         if args.use_sigmoid==True:
             layers += [nn.Sigmoid()]
-        
         self.model = nn.Sequential(*layers)
     
     def forward(self, x):
