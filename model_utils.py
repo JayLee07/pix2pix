@@ -10,9 +10,9 @@ def initialize_weights(m):
     elif classname.find('BatchNorm2d') != -1:
         m.weight.data.normal_(1.0, 0.02)
         m.bias.data.fill_(0)
-    #elif classname.find('InstanceNorm2d') != -1:
-    #   m.weight.data.normal_(1.0, 0.02)
-    #   m.bias.data.fill_(0)
+    # elif classname.find('InstanceNorm2d') != -1:
+    #     m.weight.data.normal_(1.0, 0.02)
+    #     m.bias.data.fill_(0)
         
 def get_norm_layer(norm_type='instance'):
     if norm_type == 'batch':
@@ -33,11 +33,10 @@ def print_network(net):
     print('Total number of parameters: %d' % num_params)
     
 class GANLoss(nn.Module):
-    def __init__(self, is_lsgan = True, is_real_label = True):
+    def __init__(self, is_lsgan, is_real_label, is_cuda=True):
         super(GANLoss, self).__init__()
-        self.is_lsgan, self.is_real_label = is_lsgan, is_real_label
-        self.real_label, self.fake_label = 1.0, 0.0
-        self.real_label_var, self.fake_label_var = None, None
+        self.is_real_label = is_real_label
+        self.is_cuda = is_cuda
         if is_lsgan == True:
             self.loss = nn.MSELoss()
         else:
@@ -48,8 +47,12 @@ class GANLoss(nn.Module):
             targets = Variable(torch.ones(_input.size()), requires_grad=False)
         else:
             targets = Variable(torch.zeros(_input.size()), requires_grad=False)
+        
+        if self.is_cuda==True:
+            targets = targets.cuda()
         return targets
     
     def __call__(self, _input):
         targets = self.target_tensor(_input)
-        return self.loss(_input, targets.cuda())
+        
+        return self.loss(_input, targets)
