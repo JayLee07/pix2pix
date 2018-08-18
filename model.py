@@ -1,4 +1,4 @@
-import os, time, pickle
+import os, sys, time, pickle
 import numpy as np
 
 import torch
@@ -38,11 +38,20 @@ class Pix2Pix(object):
         else:
             self.is_cuda=False
     
-    
+    def set_requires_grad(self, nets, requires_grad=False):
+        if not isinstance(nets, list):
+            nets = [nets]
+        for net in nets:
+            if net is not None:
+                for param in net.parameters():
+                    param.requires_grad = requires_grad
+
     def trainD(self, real_a, real_b, fake_b):
         """
         Train the discriminator
         """
+        self.set_requires_grad(self.D, True)
+        self.set_requires_grad(self.G, False)
         self.optimD.zero_grad()
         ### Train with fake pair
         fake_ab = torch.cat((real_a, fake_b), 2)
@@ -52,7 +61,8 @@ class Pix2Pix(object):
         real_ab = torch.cat((real_a, real_b), 2)
         D_real_ab = self.D.forward(real_ab.detach())
         D_real_loss = real_bce_gan_loss(D_real_ab)
-        # D_loss = 0.5 * (D_fake_loss + D_real_loss)
+        self.loss_dict['D_fake_loss'] = D_fake_loss
+        self.loss_dict['D_real_loss'] = D_real_loss
         return D_fake_loss, D_real_loss
     
     
@@ -60,7 +70,8 @@ class Pix2Pix(object):
         """
         Train the generator
         """
-        
+        self.set_requires_grad(self.D, False)
+        self.set_requires_grad(self.G, True)
         self.optimG.zero_grad()
         ### Train with fake pair.
         fake_ab = torch.cat((real_a, fake_b), 2)
@@ -69,6 +80,7 @@ class Pix2Pix(object):
         ### B=G(A)
         l1_loss = L1_loss(fake_b, real_b) * self.args.lamb
         G_loss = G_fake_loss + l1_loss
+        self.loss_dict['G_loss'] = G_loss
         return G_loss
     
     
@@ -76,40 +88,34 @@ class Pix2Pix(object):
         """
         Train the whole model
         """
-        
         self.loss_dict = dict()
         self.loss_dict['G_loss'] = list()
         self.loss_dict['D_fake_loss'] = list()
         self.loss_dict['D_real_loss'] = list()
         print('>>> Start Training')
         for epoch in range(self.args.maxepoch):
-            self.D.train()
-            self.G.eval()
-            print('>>>>>> Epoch: {}'.format(epoch+1))
+            self.set_requires_grad(self.D, True)
+            self.set_requires_grad(self.G, True)
             start = time.time()
             for iter_num, batch in enumerate(self.trn_loader):
+                print("\r>>>>>>Epoch {}, iter_num {}/400".format(epoch+1, iter_num+1), end="")
                 real_a, real_b = batch[0], batch[1]
                 if self.is_cuda == True:
                     real_a = real_a.cuda()
                     real_b = real_b.cuda()
                 fake_b = self.G.forward(real_a)
                 # Train D
-                self.D.train()
-                self.G.eval()
                 D_fake_loss, D_real_loss = self.trainD(real_a, real_b, fake_b)
                 D_loss = 0.5 * (D_fake_loss + D_real_loss)
                 D_loss.backward()
                 self.optimD.step()
                 # Train G
-                self.D.eval()
-                self.G.train()
                 G_loss = self.trainG(real_a, real_b, fake_b)
                 G_loss.backward()
                 self.optimG.step()
-                self.loss_dict['G_loss'] = G_loss
-                self.loss_dict['D_fake_loss'] = D_fake_loss
-                self.loss_dict['D_real_loss'] = D_real_loss
-            print("In epoch: {}, D_fake_loss: {:.4f}, D_real_loss: {:.4f}, G_loss: {:.4f}".format(epoch+1,
+                
+                
+            print("\nIn epoch: {}, D_fake_loss: {:.4f}, D_real_loss: {:.4f}, G_loss: {:.4f}".format(epoch+1,
                                                                                                   D_fake_loss,
                                                                                                   D_real_loss,
                                                                                                   G_loss))
@@ -127,7 +133,8 @@ class Pix2Pix(object):
             os.makedirs(result_dir)
         fake_filename = os.path.join(result_dir, 'epoch%03d.png' %(epoch+1))
         
-        self.G.eval()
+        # self.G.eval()
+        self.set_requires_grad(self.G, False)
         if self.is_cuda == True:
             sample_a = sample_a.cuda()
             sample_b = sample_b.cuda()
