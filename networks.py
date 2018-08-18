@@ -33,9 +33,15 @@ def discriminator(args, gpu_ids=[]):
 
 def scheduler_lr(args, optimizer):
     if args.lr_policy == 'step':
-        scheduler = lr_scheduler.StepLR(optimizer, step_size = args.lr_decay_iters, gamma=0.1)
+        scheduler = lr_scheduler.StepLR(optimizer, 
+                                        step_size = args.lr_decay_iters,
+                                        gamma=0.1)
     elif args.lr_policy == 'plateau':
-        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, threshold=0.01, patience=5)
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                   mode='min',
+                                                   factor=0.2,
+                                                   threshold=0.01,
+                                                   patience=5)
     else:
         return NotImplementedError('{} is not the proper name of scheduler_lr'.format(args.lr_policy))
     return scheduler
