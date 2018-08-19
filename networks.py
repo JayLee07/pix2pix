@@ -8,8 +8,11 @@ from model_utils import get_norm_layer, initialize_weights
 
 def generator(args, gpu_ids=[]):
     norm_layer = get_norm_layer(args.norm_type)
-    netG = ResnetG(args, gpu_ids=gpu_ids)
-    if args.modelG != 'resnet_9blocks' and args.modelG != 'resnet_6blocks':
+    if args.modelG == 'resnet_9blocks' or args.modelG == 'resnet_9blocks':
+        netG = ResnetG(args, gpu_ids=gpu_ids)
+    elif args.modelG == 'UnetG':
+        netG = UnetG(args, gpu_ids=gpu_ids)
+    else:
         raise NotImplementedError('Enter the proper name of G')
     if len(gpu_ids) > 0:
         netG = netG.cuda(gpu_ids[0])
@@ -167,7 +170,114 @@ class ResnetG(nn.Module):
     def forward(self, x):
         return self.model(x)
     
-    
+
+class UnetSkipConnectionBlock(nn.Module):
+    def __init__(self, ch_input, ch_inner,
+                 submodule=None, outermost=False, innermost=False, norm_layer = nn.BatchNorm2d, use_dropout=False):
+        super(UnetSkipConnectionBlock, self).__init__()
+        self.outermost = outermost
+        if norm_layer == nn.InstanceNorm2d:
+            use_bias = True
+        else:
+            use_bias = False
+        ### Downsampling Module
+        downconv = nn.Conv2d(in_channels = ch_input,
+                             out_channels = ch_inner,
+                             kernel_size=4,
+                             stride=2,
+                             padding=1,
+                             bias=use_bias)
+        downnorm = norm_layer(ch_inner)
+        downrelu = nn.LeakyReLU(0.2, True)
+        uprelu = nn.ReLU(True)
+        upnorm = norm_layer(ch_input)
+        if innermost==True:
+            upconv = nn.ConvTranspose2d(in_channels = ch_inner,
+                                        out_channels = ch_input,
+                                        kernel_size = 4,
+                                        stride = 2,
+                                        padding = 1,
+                                        bias = use_bias)
+            down = [downrelu, downconv]
+            up = [uprelu, upconv, upnorm]
+            model = down + up
+        ### U-Net's input of transconv = ch_inner*2
+        ### Why? torch.cat((prev transconv layer, prev convlayer), 1)
+        elif outermost == True:
+            upconv = nn.ConvTranspose2d(in_channels = ch_inner*2, 
+                                        out_channels = ch_input,
+                                        kernel_size = 4,
+                                        stride = 2,
+                                        padding = 1,
+                                        bias = use_bias)
+            down = [downconv]
+            up = [uprelu, upconv, nn.Tanh()]
+            model = down + [submodule] + up
+        else:
+            upconv = nn.ConvTranspose2d(in_channels = ch_inner*2, 
+                                        out_channels = ch_input,
+                                        kernel_size = 4,
+                                        stride = 2,
+                                        padding = 1,
+                                        bias = use_bias)
+            down = [downrelu, downconv, downnorm]
+            up = [uprelu, upconv, upnorm]
+            model = down + [submodule] + up
+            if use_dropout == True:
+                model = model + [nn.Dropout(0.5)]
+        self.model = nn.Sequential(*model)
+        
+    def forward(self, x):
+        if self.outermost==True:
+            return self.model(x)
+        else:
+            return torch.cat([x, self.model(x)], 1)
+
+        
+class UnetG(nn.Module):
+    def __init__(self, args, num_downsamples=7, gpu_ids=[]):
+        super(UnetG, self).__init__()
+        norm_layer = get_norm_layer(args.norm_type)
+        # use_bias is dependent on normalizing type
+        if norm_layer == nn.InstanceNorm2d:
+            use_bias = True
+        else:
+            use_bias = False
+        ### Start from innermost
+        unet_block = UnetSkipConnectionBlock(ch_input=args.ngf*8,
+                                             ch_inner=args.ngf*8,
+                                             submodule=None,
+                                             innermost=True,
+                                             norm_layer = norm_layer)
+        for i in range(num_downsamples - 5):
+            unet_block = UnetSkipConnectionBlock(ch_input=args.ngf*8,
+                                                 ch_inner=args.ngf*8,
+                                                 submodule=unet_block,
+                                                 norm_layer=norm_layer,
+                                                 use_dropout=args.use_dropout)
+        unet_block = UnetSkipConnectionBlock(ch_input=args.ngf * 4,
+                                             ch_inner=args.ngf * 8,
+                                             submodule=unet_block,
+                                             norm_layer=norm_layer)
+        unet_block = UnetSkipConnectionBlock(ch_input=args.ngf * 2,
+                                             ch_inner=args.ngf * 4,
+                                             submodule=unet_block,
+                                             norm_layer=norm_layer)
+        unet_block = UnetSkipConnectionBlock(ch_input=args.ngf,
+                                             ch_inner=args.ngf * 2,
+                                             submodule=unet_block, 
+                                             norm_layer=norm_layer)
+        unet_block = UnetSkipConnectionBlock(ch_input=args.ch_in,
+                                             ch_inner=args.ngf, 
+                                             submodule=unet_block, 
+                                             outermost=True, 
+                                             norm_layer=norm_layer)
+        self.model = unet_block
+        
+    def forward(self, x):
+        return self.model(x)
+
+        
 class PixelD(nn.Module):
     def __init__(self, args, gpu_ids=[]):
         super(PixelD, self).__init__()
