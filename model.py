@@ -122,10 +122,12 @@ class Pix2Pix(object):
     
     def save_results(self, epoch, sample_a, sample_b):
         ### save result img file
-        exp_config = "ngf_{}_ndf_{}_lambda_{}_norm_{}".format(self.args.ngf,
-                                                              self.args.ndf,
-                                                              self.args.lamb,
-                                                              self.args.norm_type)
+        exp_config = "D_{}_G_{}_ngf_{}_ndf_{}_lambda_{}_norm_{}".format(self.args.modelD,
+                                                                        self.args.modelG,
+                                                                        self.args.ngf,
+                                                                        self.args.ndf,
+                                                                        self.args.lamb,
+                                                                        self.args.norm_type)
         result_dir = os.path.join(self.args.save_dir,'logs', self.args.model, self.args.dataset, exp_config)
         if not os.path.exists(result_dir):
             os.makedirs(result_dir)
@@ -143,10 +145,12 @@ class Pix2Pix(object):
         
     def save_model(self):
         #save trained models
-        exp_config = "ngf_{}_ndf_{}_lambda_{}_norm_{}".format(self.args.ngf,
-                                                              self.args.ndf,
-                                                              self.args.lamb,
-                                                              self.args.norm_type)
+        exp_config = "D_{}_G_{}_ngf_{}_ndf_{}_lambda_{}_norm_{}".format(self.args.modelD,
+                                                                        self.args.modelG,
+                                                                        self.args.ngf,
+                                                                        self.args.ndf,
+                                                                        self.args.lamb,
+                                                                        self.args.norm_type)
         model_dir = os.path.join(self.args.save_dir, self.args.model, self.args.dataset, exp_config)
         if not os.path.exists(model_dir):
             os.makedirs(model_dir)
@@ -158,10 +162,12 @@ class Pix2Pix(object):
             
     def load_model(self):
         # load saved model
-        exp_config = "ngf_{}_ndf_{}_lambda_{}_norm_{}".format(self.args.ngf,
-                                                              self.args.ndf,
-                                                              self.args.lamb,
-                                                              self.args.norm_type)
+        exp_config = "D_{}_G_{}_ngf_{}_ndf_{}_lambda_{}_norm_{}".format(self.args.modelD,
+                                                                        self.args.modelG,
+                                                                        self.args.ngf,
+                                                                        self.args.ndf,
+                                                                        self.args.lamb,
+                                                                        self.args.norm_type)
         model_dir = os.path.join(self.args.save_dir, self.args.model, self.args.dataset, exp_config)
         
         self.G.load_state_dict(torch.load(os.path.join(model_dir, 'G.pkl')))
